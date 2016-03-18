@@ -95,12 +95,57 @@ static ssize_t virtualchar_write (struct file * filp, const char __user *buf, si
 	return ret;
 }
 
+static loff_t virtualchar_llseek(struct file *filp, loff_t offset, int orig)
+{
+	loff_t ret;
+	switch (orig)
+	{
+		/*Offset start from the beginning of the file*/
+		case 0:
+			/*Error: Offset value is nagative*/
+			if (offset < 0)
+			{
+				ret = -EINVAL;
+				break;
+			}
+			/*Error: Offset value out of bound*/
+			if ((unsigned int)offset > MEM_SIZE)
+			{
+				ret = -EINVAL;
+				break;
+			}
+			filp->f_pos = (unsigned int) offset;
+			ret = filp->f_pos;
+			break;
+		/*Offset start from current position*/
+		case 1:
+			if ((filp->f_pos + offset) > MEM_SIZE)
+			{
+				ret = -EINVAL;
+				break;
+			}
+			if ((filp->f_pos + offset) < 0)
+			{
+				ret = -EINVAL;
+				break;
+			}
+			filp->f_pos += offset;
+			ret = filp->f_pos;
+			break;
+		default:
+			ret = -EINVAL;
+	}
+	return ret;
+}
+
+
 /*Assign file_operation functions*/
 static const struct file_operations virtualchar_fops = {
 	.owner = THIS_MODULE,
 	.read = virtualchar_read,
 	.write = virtualchar_write,
 	.open = virtualchar_open,
+	.llseek = virtualchar_llseek,
 	.release = virtualchar_release,
 };
 
