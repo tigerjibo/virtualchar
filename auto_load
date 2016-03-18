@@ -7,9 +7,9 @@
 module="virtualchar"
 device="virtualchar"  #The device name and the module name may be same or not . 
 mode="666"
-
+number=1     #number-1
 #删除原有节点
-rm -f  /dev/${device}[0]
+rm -f  /dev/${device}[0-$number]
 #先卸载，在加载模块
 /sbin/rmmod $module
 
@@ -18,8 +18,10 @@ rm -f  /dev/${device}[0]
 major=$(cat /proc/devices |grep ${device} |awk '{printf $1}')
 echo Using major number $major
 
+for i in [0-$number]
+do
+	echo "create" $major $i
+	mknod /dev/${device}$i c $major $i
+done
 
-mknod /dev/${device}0 c $major 0
-
-
-chmod $mode /dev/${device}[0]
+chmod $mode /dev/${device}[0-$number]
