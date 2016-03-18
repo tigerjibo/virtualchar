@@ -6,11 +6,12 @@
 #include <linux/cdev.h>
 #include <linux/slab.h>
 #include <asm/uaccess.h>
+#include<linux/platform_device.h>
 
 /*Memory size is 4096 bytes*/
 #define MEM_SIZE 0x1000
 #define MEM_CLEAR 0x1
-#define DEVICE_NUM  2
+#define DEVICE_NUM  1
 
 #ifndef VIRTUALCHAR_MAJOR 
 #define VIRTUALCHAR_MAJOR 148
@@ -24,6 +25,7 @@ struct virtualchar_dev
 };
 
 struct virtualchar_dev *virtualchar_devp;
+static struct class *virtualchar_class;
 
 int virtualchar_open(struct inode *inode, struct file * filp)
 {
@@ -209,7 +211,12 @@ int virtualchar_init (void)
 		goto fail_malloc;
 	}
 	memset(virtualchar_devp, 0, DEVICE_NUM*sizeof(struct virtualchar_dev));
-
+	virtualchar_class = class_create(THIS_MODULE,"virtualchar");
+	if(IS_ERR(virtualchar_class)){
+		printk("can not create a virtualchar class!\n");
+		return -1;
+	}
+	device_create(virtualchar_class,NULL,devno,NULL,"virtualchar");
 	/*Initialize and add cdev*/
 	for(i = 0 ;i < DEVICE_NUM; i++){
 		virtualchar_setup_cdev(&virtualchar_devp[i], i);
@@ -223,11 +230,14 @@ fail_malloc: unregister_chrdev_region(devno, 1);
 
 void virtualchar_exit (void)
 {
+	int i;
 	/*Delete cdev node*/
 	cdev_del(&(virtualchar_devp[0].cdev));
 
 	/*Release the allocated memory*/
 	kfree(virtualchar_devp);
+	device_destroy(virtualchar_class,MKDEV(virtualchar_major,0));
+	class_destroy(virtualchar_class);
 	/*Release device number*/
 	unregister_chrdev_region(MKDEV(virtualchar_major, 0), DEVICE_NUM);
 }
