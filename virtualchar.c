@@ -6,12 +6,12 @@
 #include <linux/cdev.h>
 #include <linux/slab.h>
 #include <asm/uaccess.h>
-#include<linux/platform_device.h>
+#include<linux/miscdevice.h>
 
 /*Memory size is 4096 bytes*/
 #define MEM_SIZE 0x1000
 #define MEM_CLEAR 0x1
-#define DEVICE_NUM  1
+
 
 #ifndef VIRTUALCHAR_MAJOR 
 #define VIRTUALCHAR_MAJOR 148
@@ -25,7 +25,7 @@ struct virtualchar_dev
 };
 
 struct virtualchar_dev *virtualchar_devp;
-static struct class *virtualchar_class;
+
 
 int virtualchar_open(struct inode *inode, struct file * filp)
 {
@@ -171,75 +171,35 @@ static const struct file_operations virtualchar_fops = {
 	.release = virtualchar_release,
 };
 
-/*Part of init function*/
-static void virtualchar_setup_cdev(struct virtualchar_dev *dev, int index)
-{
-	int err, devno = MKDEV(virtualchar_major, index);
-
-	/*Init global memory, associate file_fops struct*/
-	cdev_init(&dev->cdev, &virtualchar_fops);
-	dev->cdev.owner = THIS_MODULE;
-	/*Add cdev to system, associate with device number*/
-	err = cdev_add(&dev->cdev, devno, 1);
-	if (err)
-		printk(KERN_NOTICE "Error %d adding globalmem", err);
-}
+static struct miscdevice misc={
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "virtualchar",
+	.fops = &virtualchar_fops,
+};
 
 int virtualchar_init (void)
 {
-	int result,i;
-	dev_t devno = MKDEV(virtualchar_major, 0);
-
-	/*Apply char device driver region, specify display names at /proc/devices and sysfs*/
-	if (virtualchar_major)
-		result = register_chrdev_region(devno, DEVICE_NUM, "virtualchar");
-	else
-	/*Dynamically allocate major/minor numbers*/
-	{
-		result = alloc_chrdev_region(&devno, 0, DEVICE_NUM, "virtualchar");
-		virtualchar_major = MAJOR(devno);
-	}
-
-	if (result < 0)
-		return result;
+	int result;
 
 	/*Dynamically allocate device struct memory*/
-	virtualchar_devp = kmalloc(DEVICE_NUM*sizeof(struct virtualchar_dev), GFP_KERNEL);
+	virtualchar_devp = kmalloc(1*sizeof(struct virtualchar_dev), GFP_KERNEL);
 	if (! virtualchar_devp)
 	{
 		result = -ENOMEM;
-		goto fail_malloc;
+		return result;
 	}
-	memset(virtualchar_devp, 0, DEVICE_NUM*sizeof(struct virtualchar_dev));
-	virtualchar_class = class_create(THIS_MODULE,"virtualchar");
-	if(IS_ERR(virtualchar_class)){
-		printk("can not create a virtualchar class!\n");
-		return -1;
-	}
-	device_create(virtualchar_class,NULL,devno,NULL,"virtualchar");
-	/*Initialize and add cdev*/
-	for(i = 0 ;i < DEVICE_NUM; i++){
-		virtualchar_setup_cdev(&virtualchar_devp[i], i);
-	}
+	memset(virtualchar_devp, 0, 1*sizeof(struct virtualchar_dev));
+	result = misc_register(&misc);
 
 	return 0;
 
-fail_malloc: unregister_chrdev_region(devno, 1);
-			 return result;
+
 }
 
 void virtualchar_exit (void)
 {
-	int i;
-	/*Delete cdev node*/
-	cdev_del(&(virtualchar_devp[0].cdev));
-
-	/*Release the allocated memory*/
 	kfree(virtualchar_devp);
-	device_destroy(virtualchar_class,MKDEV(virtualchar_major,0));
-	class_destroy(virtualchar_class);
-	/*Release device number*/
-	unregister_chrdev_region(MKDEV(virtualchar_major, 0), DEVICE_NUM);
+	misc_deregister(&misc);
 }
 
 MODULE_AUTHOR("Ji Bo");
