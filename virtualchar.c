@@ -138,6 +138,24 @@ static loff_t virtualchar_llseek(struct file *filp, loff_t offset, int orig)
 	return ret;
 }
 
+static long virtualchar_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	struct virtualchar_dev *dev = filp->private_data;
+
+	switch (cmd)
+	{
+		/*Command to clear global memory*/
+		case MEM_CLEAR:
+			memset(dev->mem, 0, MEM_SIZE);
+			printk(KERN_INFO "virtualchar memory is set to zero\n");
+			break;
+
+		default:
+			return -EINVAL;
+	}
+	return 0;
+}
+
 
 /*Assign file_operation functions*/
 static const struct file_operations virtualchar_fops = {
@@ -146,6 +164,7 @@ static const struct file_operations virtualchar_fops = {
 	.write = virtualchar_write,
 	.open = virtualchar_open,
 	.llseek = virtualchar_llseek,
+	.unlocked_ioctl = virtualchar_ioctl,
 	.release = virtualchar_release,
 };
 
