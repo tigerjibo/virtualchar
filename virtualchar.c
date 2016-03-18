@@ -10,6 +10,7 @@
 /*Memory size is 4096 bytes*/
 #define MEM_SIZE 0x1000
 #define MEM_CLEAR 0x1
+#define DEVICE_NUM  2
 
 #ifndef VIRTUALCHAR_MAJOR 
 #define VIRTUALCHAR_MAJOR 148
@@ -184,16 +185,16 @@ static void virtualchar_setup_cdev(struct virtualchar_dev *dev, int index)
 
 int virtualchar_init (void)
 {
-	int result;
+	int result,i;
 	dev_t devno = MKDEV(virtualchar_major, 0);
 
 	/*Apply char device driver region, specify display names at /proc/devices and sysfs*/
 	if (virtualchar_major)
-		result = register_chrdev_region(devno, 1, "virtualchar");
+		result = register_chrdev_region(devno, DEVICE_NUM, "virtualchar");
 	else
 	/*Dynamically allocate major/minor numbers*/
 	{
-		result = alloc_chrdev_region(&devno, 0, 1, "virtualchar");
+		result = alloc_chrdev_region(&devno, 0, DEVICE_NUM, "virtualchar");
 		virtualchar_major = MAJOR(devno);
 	}
 
@@ -201,16 +202,19 @@ int virtualchar_init (void)
 		return result;
 
 	/*Dynamically allocate device struct memory*/
-	virtualchar_devp = kmalloc(1*sizeof(struct virtualchar_dev), GFP_KERNEL);
+	virtualchar_devp = kmalloc(DEVICE_NUM*sizeof(struct virtualchar_dev), GFP_KERNEL);
 	if (! virtualchar_devp)
 	{
 		result = -ENOMEM;
 		goto fail_malloc;
 	}
-	memset(virtualchar_devp, 0, 1*sizeof(struct virtualchar_dev));
+	memset(virtualchar_devp, 0, DEVICE_NUM*sizeof(struct virtualchar_dev));
 
 	/*Initialize and add cdev*/
-	virtualchar_setup_cdev(&virtualchar_devp[0], 0);
+	for(i = 0 ;i < DEVICE_NUM; i++){
+		virtualchar_setup_cdev(&virtualchar_devp[i], i);
+	}
+
 	return 0;
 
 fail_malloc: unregister_chrdev_region(devno, 1);
@@ -225,7 +229,7 @@ void virtualchar_exit (void)
 	/*Release the allocated memory*/
 	kfree(virtualchar_devp);
 	/*Release device number*/
-	unregister_chrdev_region(MKDEV(virtualchar_major, 0), 1);
+	unregister_chrdev_region(MKDEV(virtualchar_major, 0), DEVICE_NUM);
 }
 
 MODULE_AUTHOR("Ji Bo");
